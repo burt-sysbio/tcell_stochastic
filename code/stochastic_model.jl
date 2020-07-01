@@ -1,5 +1,7 @@
 using Distributions
 using Plots
+using DataFrames
+using CSV
 
 function draw_fate(p1=0.2, p2=0.5, p3=0.3)
     # draw random number
@@ -16,7 +18,7 @@ end
 
 
 # parameters
-n_cells = 500
+n_cells = 2000
 # cell can be alive or dead
 # create cell array
 time_arr = range(0, 5, step = 0.05)
@@ -26,6 +28,7 @@ time_arr = range(0, 5, step = 0.05)
 # third entry is cumulative
 function run_sim(n_sim, n_cells, time_arr)
     res_arr = [stoc_model(n_cells, time_arr) for i = 1:n_sim]
+    res_arr = vcat(res_arr...)
     return res_arr
 end
 # for each time point loop over each cell
@@ -79,18 +82,12 @@ function stoc_model(n_cells, time_arr)
         n_tr1[t] = sum(cell_arr[:,1] .== 3)
         n_naive[t] = sum(cell_arr[:,1] .== 0)    #println(t)
     end
-    return [n_th1 n_tfh n_tr1]
+    df = DataFrame(time = time_arr, Th1 = n_th1, Tfh = n_tfh, Tr1 = n_tr1)
+    return df
 end
 # check how update rules for cells will apply
 # find old python script where I did this
 
-res_arr = run_sim(10, n_cells, time_arr)
+res_arr = run_sim(100, n_cells, time_arr)
 
-
-for i=1:10
-    if i == 1
-        display(plot(time_arr, res_arr[i], color = [:blue :red :grey]))
-    else
-        display(plot!(time_arr, res_arr[i], color = [:blue :red :grey]))
-    end
-end
+CSV.write("teststoring.csv", res_arr)
