@@ -1,7 +1,8 @@
+module stochastic_model
+
 using Distributions
-using Plots
 using DataFrames
-using CSV
+
 
 function draw_fate(p1=0.2, p2=0.5, p3=0.3)
     # draw random number
@@ -17,20 +18,6 @@ function draw_fate(p1=0.2, p2=0.5, p3=0.3)
 end
 
 
-# parameters
-n_cells = 2000
-# cell can be alive or dead
-# create cell array
-time_arr = range(0, 5, step = 0.05)
-
-# first entry is cell cell_state
-# second entry is jump time (last state transition)
-# third entry is cumulative
-function run_sim(n_sim, n_cells, time_arr)
-    res_arr = [stoc_model(n_cells, time_arr) for i = 1:n_sim]
-    res_arr = vcat(res_arr...)
-    return res_arr
-end
 # for each time point loop over each cell
 function stoc_model(n_cells, time_arr)
     cell_arr = zeros((n_cells, 4))
@@ -85,9 +72,10 @@ function stoc_model(n_cells, time_arr)
     df = DataFrame(time = time_arr, Th1 = n_th1, Tfh = n_tfh, Tr1 = n_tr1)
     return df
 end
+
+export stoc_model
+
+end
 # check how update rules for cells will apply
-# find old python script where I did this
 
-res_arr = run_sim(100, n_cells, time_arr)
 
-CSV.write("teststoring.csv", res_arr)
