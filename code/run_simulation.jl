@@ -19,4 +19,4 @@ function run_sim(n_sim, n_cells, time_arr)
 end
 
 res_arr = run_sim(100, n_cells, time_arr)
-CSV.write("./output/teststoring.csv", res_arr)
+CSV.write("../output/teststoring2.csv", res_arr)
