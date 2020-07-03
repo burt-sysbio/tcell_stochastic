@@ -11,7 +11,7 @@ import seaborn as sns
 import pandas as pd
 from scipy.integrate import odeint
 
-sns.set(style = "ticks", context = "poster")
+sns.set(context = "poster")
 
 d = {
     "alpha" : 2,
@@ -70,4 +70,8 @@ df_tidy_stoc["model"] = "Stoc."
 
 df_all = pd.concat([df_tidy, df_tidy_stoc])
 g = sns.relplot(data = df_all, x = "time", y = "value", hue = "variable", 
-                kind = "line", style = "model")
+                kind = "line", style = "model", ci = "sd")
+
+g.set(xlabel = "time pI", ylabel = "cells")
+g.savefig("../figures/stochastic_ode_comparison.pdf")
+

@@ -170,7 +170,7 @@ function run_sim(n_sim, n_cells, time_arr)
     return res_arr
 end
 
-df = run_sim(200, n_cells, time_arr)
+df = run_sim(50, n_cells, time_arr)
 
 #using StatsPlots
 #@df df plot(:time, [:Th1 :Tfh], colour = [:red :blue])
