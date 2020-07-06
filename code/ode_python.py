@@ -33,30 +33,36 @@ def pos_fb(c, EC50):
 def ode_model(state, time, d):
     naive = state[0]
     naive_1 = state[1]
-    th1 = state[2]
-    tfh = state[3]
-    tr1 = state[4]
+    prec = state[2]
+    prec_1 = state[3]
+    th1 = state[4]
+    tfh = state[5]
+    tr1 = state[6]
     
     myc = np.exp(-d["deg_myc"]*time)
-    r_div_th1 = d["r_div_th1"]*pos_fb(myc, d["EC50_myc"])
     
+    r_div_th1 = d["r_div_th1"]*pos_fb(myc, d["EC50_myc"])
+    r_div_th1= 1
     dt_naive = -d["beta"]*naive
     dt_naive_1 = d["beta"]*(naive-naive_1)
-    dt_th1 = d["beta"]*naive_1*d["prob_th1"]+(r_div_th1-d["r_death"])*th1
-    dt_tfh = d["beta"]*naive_1*d["prob_tfh"]+(r_div_th1-d["r_death"])*tfh
-    dt_tr1 = d["beta"]*naive_1*d["prob_tr1"]+(r_div_th1-d["r_death"])*tr1
+    dt_prec = d["beta"]*(naive_1-prec)
+    dt_prec_1 = d["beta"]*(prec-prec_1)
+    dt_th1 = d["beta"]*prec_1*d["prob_th1"]+(r_div_th1-d["r_death"])*th1
+    dt_tfh = d["beta"]*prec_1*d["prob_tfh"]+(r_div_th1-d["r_death"])*tfh
+    dt_tr1 = d["beta"]*prec_1*d["prob_tr1"]+(r_div_th1-d["r_death"])*tr1
     
-    dt_state = [dt_naive, dt_naive_1, dt_th1, dt_tfh, dt_tr1]
+    dt_state = [dt_naive, dt_naive_1, dt_prec, dt_prec_1, dt_th1, dt_tfh, dt_tr1]
     return dt_state
 
 
 t = np.arange(0,10,0.01)
-y0 = np.zeros(5)
+y0 = np.zeros(7)
 y0[0] = 1
 state = odeint(ode_model, y0, t, args = (d,))
 
-df = pd.DataFrame(state, columns = ["naive", "naive_1", "Th1", "Tfh", "Tr1"])
-df = df[["Th1", "Tfh", "Tr1"]]
+df = pd.DataFrame(state, columns = ["naive", "naive_1", "Prec", "Prec_1", "Th1", "Tfh", "Tr1"])
+df["Prec"] = df.Prec+df.Prec_1
+df = df[["Prec", "Th1", "Tfh", "Tr1"]]
 df["time"] = t
 
 n_cells = 2000
