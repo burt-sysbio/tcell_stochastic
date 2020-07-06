@@ -43,8 +43,8 @@ def ode_model(state, time, d):
     dt_naive = -d["beta"]*naive
     dt_naive_1 = d["beta"]*(naive-naive_1)
     dt_th1 = d["beta"]*naive_1*d["prob_th1"]+(r_div_th1-d["r_death"])*th1
-    dt_tfh = d["beta"]*naive_1*d["prob_tfh"]+(d["r_div"]-d["r_death"])*tfh
-    dt_tr1 = d["beta"]*naive_1*d["prob_tr1"]+(d["r_div"]-d["r_death"])*tr1
+    dt_tfh = d["beta"]*naive_1*d["prob_tfh"]+(r_div_th1-d["r_death"])*tfh
+    dt_tr1 = d["beta"]*naive_1*d["prob_tr1"]+(r_div_th1-d["r_death"])*tr1
     
     dt_state = [dt_naive, dt_naive_1, dt_th1, dt_tfh, dt_tr1]
     return dt_state
@@ -59,7 +59,7 @@ df = pd.DataFrame(state, columns = ["naive", "naive_1", "Th1", "Tfh", "Tr1"])
 df = df[["Th1", "Tfh", "Tr1"]]
 df["time"] = t
 
-n_cells = 1000
+n_cells = 2000
 df_tidy = df.melt(id_vars = ["time"])
 df_tidy.value = df_tidy.value*n_cells
 df_tidy["model"] = "ODE"
