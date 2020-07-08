@@ -82,8 +82,7 @@ function create_cell(cell_arr, i, time, dead_idx, cell_state, last_state_change,
 prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div)
     # find a dead cell and make it alive
     # from all dead cells start with the first index then increase
-    dead_cells = findall(cell_arr[:, cell_state] .== dead_idx)
-    k = dead_cells[1]
+    k = findfirst(cell_arr[:, cell_state] .== dead_idx)
     cell_arr[k,cell_state] = cell_arr[i, cell_state]
     # for daughter cell add new div and death probabilities
     # also assign new last death/div/state change time
@@ -103,6 +102,63 @@ prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div)
         cell_arr[i,cell_state] = dead_idx
     end
 end
+
+
+function update_cells(cell_arr, time, t_new, r_div, r_death, alpha, beta, cell_state, last_state_change,
+prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div, naive_idx, prec_idx,
+th1_idx, tr1_idx, dead_idx)
+
+    cell_params = [cell_state, last_state_change, prob_state_change, prob_death,
+    prob_div, prob_div0, last_death, last_div]
+
+    alive_cells = findall(cell_arr[:,cell_state] .!= dead_idx)
+    Threads.@threads for i in alive_cells
+        # note that the order of death vs prolif matters here
+        # if they cells die first they cannot proliferate, reverse is not true
+        # still not sure if I should use update state at t+1 so that all effects
+
+        # differentiation
+        if cell_arr[i,cell_state] == naive_idx
+            naive_diff(cell_arr, i, time, alpha, beta, prec_idx, cell_params...)
+
+        elseif cell_arr[i,cell_state] == prec_idx
+            prec_diff(cell_arr, i, time, alpha, beta, cell_params...)
+
+        else
+            cell_prolif(cell_arr, i, time, t_new, r_div, dead_idx, cell_params...)
+            cell_death(cell_arr, i, time, r_death, dead_idx, cell_params...)
+        end
+    end
+end
+
+
+function update_cell_numbers(cell_arr, t, cell_state, n_th1, n_tfh, n_tr1, n_naive, n_prec,
+    th1_idx, tfh_idx, tr1_idx, naive_idx, prec_idx)
+    n_th1[t] = sum(cell_arr[:,cell_state] .== th1_idx)
+    n_tfh[t] = sum(cell_arr[:,cell_state] .== tfh_idx)
+    n_tr1[t] = sum(cell_arr[:,cell_state] .== tr1_idx)
+    n_naive[t] = sum(cell_arr[:,cell_state] .== naive_idx)    #println(t)
+    n_prec[t] = sum(cell_arr[:,cell_state] .== prec_idx)
+end
+
+
+function create_cell_arr(n_cells, n_states, cell_state, prob_state_change, prob_death, prob_div,
+    dead_idx)
+    cell_arr = zeros((n_cells, n_states))
+    # assign random numbers for naive prec. transition
+    cell_arr[:,prob_state_change] = rand(n_cells)
+    # assign random numbers for death event of cells
+    cell_arr[:,prob_death] = rand(n_cells)
+    cell_arr[:,prob_div] = rand(n_cells)
+
+    n_dead_cells = 1000
+    dead_cell_arr = zeros((n_dead_cells, n_states))
+    dead_cell_arr[:, cell_state] .= dead_idx
+    cell_arr = [cell_arr; dead_cell_arr]
+
+    return cell_arr
+end
+
 
 function stoc_model(n_cells, time_arr)
     ########################################################## assign parameters
@@ -134,18 +190,8 @@ function stoc_model(n_cells, time_arr)
 
     ######################################################### create cell array
     n_states = length(cell_params)
-    cell_arr = zeros((n_cells, n_states))
-    # assign random numbers for naive prec. transition
-    cell_arr[:,prob_state_change] = rand(n_cells)
-    # assign random numbers for death event of cells
-    cell_arr[:,prob_death] = rand(n_cells)
-    cell_arr[:,prob_div] = rand(n_cells)
-
-    n_dead_cells = 2000
-    dead_cell_arr = zeros((n_dead_cells, n_states))
-    dead_cell_arr[:, cell_state] .= dead_idx
-    cell_arr = [cell_arr; dead_cell_arr]
-
+    cell_arr = create_cell_arr(n_cells, n_states, cell_state, prob_state_change, prob_death, prob_div,
+    dead_idx)
     ################################################ create arr for cell numbers
     n_naive = zeros(length(time_arr))
     n_th1 = zeros(length(time_arr))
@@ -156,62 +202,24 @@ function stoc_model(n_cells, time_arr)
     for t = 1:(length(time_arr)-1)
         time = time_arr[t]
         t_new = time_arr[t+1]
-        myc = get_myc(time, deg_myc)
+        #myc = get_myc(time, deg_myc)
         r_div = r_div_base#*pos_fb(myc, EC50_myc)
-        # get indices of dead cells
-        # use 8 as idx for dead cells
-        alive_cells = findall(cell_arr[:,cell_state] .!= dead_idx)
 
-        for i in alive_cells
-            # note that the order of death vs prolif matters here
-            # if they cells die first they cannot proliferate, reverse is not true
-            # still not sure if I should use update state at t+1 so that all effects
+        update_cells(cell_arr, time, t_new, r_div, r_death, alpha, beta, cell_state,
+        last_state_change, prob_state_change, prob_death, prob_div, prob_div0,
+        last_death, last_div, naive_idx, prec_idx, th1_idx, tr1_idx, dead_idx)
 
-            # differentiation
-            if cell_arr[i,cell_state] == naive_idx
-                naive_diff(cell_arr, i, time, alpha, beta, prec_idx, cell_params...)
-            end
-
-            if cell_arr[i,cell_state] == prec_idx
-                prec_diff(cell_arr, i, time, alpha, beta, cell_params...)
-            end
-
-            # proliferation
-            if cell_arr[i,cell_state] in [th1_idx, tfh_idx, tr1_idx]
-                cell_prolif(cell_arr, i, time, t_new, r_div, dead_idx, cell_params...)
-            end
-
-            # death
-            if cell_arr[i,cell_state] in [th1_idx, tfh_idx, tr1_idx]
-                cell_death(cell_arr, i, time, r_death, dead_idx, cell_params...)
-            end
-        end
-
-        # get cell numbers
-        n_th1[t] = sum(cell_arr[:,cell_state] .== th1_idx)
-        n_tfh[t] = sum(cell_arr[:,cell_state] .== tfh_idx)
-        n_tr1[t] = sum(cell_arr[:,cell_state] .== tr1_idx)
-        n_naive[t] = sum(cell_arr[:,cell_state] .== naive_idx)    #println(t)
-        n_prec[t] = sum(cell_arr[:,cell_state] .== prec_idx)
+        update_cell_numbers(cell_arr, t, cell_state, n_th1, n_tfh, n_tr1, n_naive,
+        n_prec, th1_idx, tfh_idx, tr1_idx, naive_idx, prec_idx)
     end
 
-    df = DataFrame(time = time_arr, Th1 = n_th1, Tfh = n_tfh, Tr1 = n_tr1, Prec = n_prec)
+    df = DataFrame(time = time_arr, Th1 = n_th1, Tfh = n_tfh, Tr1 = n_tr1,
+    Prec = n_prec)
+
     return df
 end
 
 #################################################### change below if I want module
-#export stoc_model
-#end
-# check how update rules for cells will apply
-
-
-# parameters
-n_cells = 2000
-# cell can be alive or dead
-# create cell array
-time_arr = range(0, 10, step = 0.01)
-
-# first entry is cell cell_state
 # second entry is jump time (last state transition)
 # third entry is cumulative
 function run_sim(n_sim, n_cells, time_arr)
@@ -220,9 +228,20 @@ function run_sim(n_sim, n_cells, time_arr)
     return res_arr
 end
 
+# parameters
+n_cells = 500
+# cell can be alive or dead
+# create cell array
+
+time_arr = range(0, 15, step = 0.0001)
 df = run_sim(100, n_cells, time_arr)
+CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step0001.csv", df)
 
-#using StatsPlots
-#@df df plot(:time, [:Th1 :Tfh], colour = [:red :blue])
+time_arr = range(0, 15, step = 0.001)
+df = run_sim(100, n_cells, time_arr)
+CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step001.csv", df)
 
-CSV.write("Onedrive/projects/2020/tcell_stochastic/output/teststoring.csv", df)
+
+time_arr = range(0, 15, step = 0.01)
+df = run_sim(100, n_cells, time_arr)
+CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step01.csv", df)

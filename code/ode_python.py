@@ -41,7 +41,7 @@ def ode_model(state, time, d):
     
     myc = np.exp(-d["deg_myc"]*time)
     
-    r_div_th1 = d["r_div_th1"]*pos_fb(myc, d["EC50_myc"])
+    r_div_th1 = d["r_div_th1"]#*pos_fb(myc, d["EC50_myc"])
     r_div_th1= 1
     dt_naive = -d["beta"]*naive
     dt_naive_1 = d["beta"]*(naive-naive_1)
@@ -65,7 +65,7 @@ df["Prec"] = df.Prec+df.Prec_1
 df = df[["Prec", "Th1", "Tfh", "Tr1"]]
 df["time"] = t
 
-n_cells = 2000
+n_cells = 500
 df_tidy = df.melt(id_vars = ["time"])
 df_tidy.value = df_tidy.value*n_cells
 df_tidy["model"] = "ODE"
