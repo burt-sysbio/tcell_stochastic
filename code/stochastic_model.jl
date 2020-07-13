@@ -2,7 +2,41 @@
 
 using Distributions
 using DataFrames
-using CSV
+using HDF5
+
+# param dict
+
+
+# cell state dict
+state_dict = Dict([
+("state", 1),
+("last_change", 2),
+("last_death", 3),
+("last_div", 4),
+("prob_change", 5),
+("prob_div0", 6),
+("prob_div", 7),
+("prob_death", 8)
+])
+
+fate_dict = Dict([
+("Naive", 1),
+("Prec", 2),
+("Th1", 3),
+("Tfh", 4),
+("Tr1", 5),
+("Dead", 6)
+])
+
+param_dict = Dict([
+("alpha", 2),
+("beta", 2.0),
+("r_div", 1.0),
+("r_death", 1.0)
+])
+
+# cell index dict
+
 
 function draw_fate(p1=0.5, p2=0.2, p3=0.3)
     # draw random number
@@ -27,171 +61,136 @@ function get_myc(time, deg_myc)
 end
 # for each time point loop over each cell
 
-function naive_diff(cell_arr, i, time, alpha, beta, prec_idx, cell_state, last_state_change,
-prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div)
+function naive_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
 # note that naive cell does not need to take jump instance into account because last_state change = 0
-    if 1-cdf(Gamma(alpha,1/beta), time) < cell_arr[i,prob_state_change]
+    if 1-cdf(Gamma(param_dict["alpha"],1/param_dict["beta"]), time) < cell_arr[i, param_dict["prob_change"]]
         # assign new cell state
-        cell_arr[i,cell_state] = prec_idx
+        cell_arr[i,state_dict["fate"]] = fate_dict["Prec"]
 
         # assign jump time
-        cell_arr[i,last_state_change] = time
-        cell_arr[i,last_div] = time
+        cell_arr[i,state_dict["last_change"]] = time
+        cell_arr[i,state_dict["last_div"]] = time
         # add this only because only effecotr cells die
-        cell_arr[i,last_death] = time
-        cell_arr[i, prob_state_change] = rand(Float64)
+        cell_arr[i,state_dict["last_death"]] = time
+        cell_arr[i, state_dict["prob_change"]] = rand(Float64)
     end
 end
 
 
-function prec_diff(cell_arr, i, time, alpha, beta, cell_state, last_state_change,
-prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div)
+function prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
 # note that naive cell does not need to take jump instance into account because last_state change = 0
-    if 1-cdf(Gamma(alpha,1/beta), time-cell_arr[i, last_state_change]) < cell_arr[i,prob_state_change]
+    if 1-cdf(Gamma(param_dict["alpha"],1/param_dict["beta"]), time-cell_arr[i, state_dict["last_change"]]) <
+        cell_arr[i, state_dict["prob_change"]]
         # assign new cell state
-        cell_arr[i,cell_state] = draw_fate()
+        cell_arr[i, state_dict["state"]] = draw_fate()
         # assign jump time
-        cell_arr[i,last_state_change] = time
-        cell_arr[i,last_div] = time
-        cell_arr[i,last_death] = time
-        cell_arr[i, prob_state_change] = rand(Float64)
+        cell_arr[i, state_dict["last_change"]] = time
+        cell_arr[i, state_dict["last_div"]] = time
+        cell_arr[i, state_dict["last_death"]] = time
+        cell_arr[i, state_dict["prob_change"]] = rand(Float64)
     end
 end
 
 
-function cell_prolif(cell_arr, i, time, t_new, r_div, dead_idx, cell_state, last_state_change,
-prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div)
+function cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict)
 
-    if cell_arr[i, prob_div0] > cell_arr[i, prob_div]
+    if cell_arr[i, state_dict["prob_div0"]] > cell_arr[i, state_dict["prob_div"]]
 
-        create_cell(cell_arr, i, time, dead_idx, cell_state, last_state_change,
-        prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div)
+        create_cell(cell_arr, i, time, state_dict, fate_dict)
 
         # for mother cell update division time and assign new division probability
-        cell_arr[i, prob_div] = rand(Float64)
-        cell_arr[i, prob_div0] = 0
-        cell_arr[i, last_div] = time
+        cell_arr[i, state_dict["prob_div"]] = rand(Float64)
+        cell_arr[i, state_dict["prob_div0"]] = 0
+        cell_arr[i, state_dict["last_div"]] = time
     else
-        cell_arr[i, prob_div0] = cell_arr[i, prob_div0] +
-        cdf(Exponential(1/r_div),t_new-cell_arr[i,last_div])-
-        cdf(Exponential(1/r_div),time-cell_arr[i,last_div])
+        cell_arr[i, state_dict["prob_div0"]] = cell_arr[i, state_dict["prob_div0"]] +
+        cdf(Exponential(1/param_dict["r_div"]), t_new-cell_arr[i,state_dict["last_div"]]) -
+        cdf(Exponential(1/param_dict["r_div"]), time-cell_arr[i,state_dict["last_div"]])
     end
 end
 
-function create_cell(cell_arr, i, time, dead_idx, cell_state, last_state_change,
-prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div)
+function create_cell(cell_arr, i, time, state_dict, fate_dict)
     # find a dead cell and make it alive
     # from all dead cells start with the first index then increase
-    k = findfirst(cell_arr[:, cell_state] .== dead_idx)
-    cell_arr[k,cell_state] = cell_arr[i, cell_state]
+    k = findfirst(cell_arr[:, state_dict["state"]] .== fate_dict["Dead"])
+    cell_arr[k, state_dict["state"]] = cell_arr[i, state_dict["state"]]
     # for daughter cell add new div and death probabilities
     # also assign new last death/div/state change time
-    cell_arr[k, prob_div] = rand(Float64)
-    cell_arr[k, prob_death] = rand(Float64)
+    cell_arr[k, state_dict["prob_div"]] = rand(Float64)
+    cell_arr[k, state_dict["prob_death"]] = rand(Float64)
     # no one cares about state change at this point but anyway
-    cell_arr[k,last_state_change] = time
-    cell_arr[k,last_div] = time
-    cell_arr[k,last_death] = time
-    cell_arr[k, prob_div0] = 0
+    cell_arr[k, state_dict["last_change"]] = time
+    cell_arr[k, state_dict["last_div"]] = time
+    cell_arr[k, state_dict["last_death"]] = time
+    cell_arr[k, state_dict["prob_div0"]] = 0
 end
 
-function cell_death(cell_arr, i, time, r_death, dead_idx, cell_state, last_state_change,
-prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div)
+function cell_death(cell_arr, i, time, param_dict, state_dict, fate_dict)
 
-    if (1-(cdf(Exponential(1/r_death), time-cell_arr[i,last_death]))) < cell_arr[i,prob_death]
-        cell_arr[i,cell_state] = dead_idx
+    if (1-(cdf(Exponential(1/param_dict["r_death"]), time-cell_arr[i,state_dict["last_death"]]))) <
+        cell_arr[i,state_dict["prob_death"]]
+        cell_arr[i,state_dict["state"]] = fate_dict["Dead"]
     end
 end
 
 
-function update_cells(cell_arr, time, t_new, r_div, r_death, alpha, beta, cell_state, last_state_change,
-prob_state_change, prob_death, prob_div, prob_div0, last_death, last_div, naive_idx, prec_idx,
-th1_idx, tr1_idx, dead_idx)
+function update_cells(cell_arr, time, t_new, param_dict, state_dict, fate_dict)
 
-    cell_params = [cell_state, last_state_change, prob_state_change, prob_death,
-    prob_div, prob_div0, last_death, last_div]
-
-    alive_cells = findall(cell_arr[:,cell_state] .!= dead_idx)
-    Threads.@threads for i in alive_cells
+    alive_cells = findall(cell_arr[:, state_dict["state"]] .!= fate_dict["Dead"])
+    for i in alive_cells
         # note that the order of death vs prolif matters here
         # if they cells die first they cannot proliferate, reverse is not true
         # still not sure if I should use update state at t+1 so that all effects
 
         # differentiation
-        if cell_arr[i,cell_state] == naive_idx
-            naive_diff(cell_arr, i, time, alpha, beta, prec_idx, cell_params...)
+        if cell_arr[i,state_dict["state"]] == fate_dict["Naive"]
+            naive_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
 
-        elseif cell_arr[i,cell_state] == prec_idx
-            prec_diff(cell_arr, i, time, alpha, beta, cell_params...)
+        elseif cell_arr[i, state_dict["state"]] == fate_dict["Prec"]
+            prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
 
         else
-            cell_prolif(cell_arr, i, time, t_new, r_div, dead_idx, cell_params...)
-            cell_death(cell_arr, i, time, r_death, dead_idx, cell_params...)
+            cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict)
+            cell_death(cell_arr, i, time, param_dict, state_dict, fate_dict)
         end
     end
 end
 
 
-function update_cell_numbers(cell_arr, t, cell_state, n_th1, n_tfh, n_tr1, n_naive, n_prec,
-    th1_idx, tfh_idx, tr1_idx, naive_idx, prec_idx)
-    n_th1[t] = sum(cell_arr[:,cell_state] .== th1_idx)
-    n_tfh[t] = sum(cell_arr[:,cell_state] .== tfh_idx)
-    n_tr1[t] = sum(cell_arr[:,cell_state] .== tr1_idx)
-    n_naive[t] = sum(cell_arr[:,cell_state] .== naive_idx)    #println(t)
-    n_prec[t] = sum(cell_arr[:,cell_state] .== prec_idx)
+function update_cell_numbers(cell_arr, t, n_th1, n_tfh, n_tr1, n_naive, n_prec,
+    state_dict, fate_dict)
+    n_th1[t] = sum(cell_arr[:, state_dict["state"]] .== fate_dict["Th1"])
+    n_tfh[t] = sum(cell_arr[:,state_dict["state"]] .== fate_dict["Tfh"])
+    n_tr1[t] = sum(cell_arr[:, state_dict["state"]] .== fate_dict["Tr1"])
+    n_naive[t] = sum(cell_arr[:, state_dict["state"]] .== fate_dict["Naive"])    #println(t)
+    n_prec[t] = sum(cell_arr[:, state_dict["state"]] .== fate_dict["Prec"])
 end
 
 
-function create_cell_arr(n_cells, n_states, cell_state, prob_state_change, prob_death, prob_div,
-    dead_idx)
+function create_cell_arr(n_cells, n_states, state_dict, fate_dict)
     cell_arr = zeros((n_cells, n_states))
     # assign random numbers for naive prec. transition
-    cell_arr[:,prob_state_change] = rand(n_cells)
+    cell_arr[:, state_dict["prob_change"]] = rand(n_cells)
     # assign random numbers for death event of cells
-    cell_arr[:,prob_death] = rand(n_cells)
-    cell_arr[:,prob_div] = rand(n_cells)
+    cell_arr[:, state_dict["prob_death"]] = rand(n_cells)
+    cell_arr[:, state_dict["prob_div"]] = rand(n_cells)
 
     n_dead_cells = 1000
     dead_cell_arr = zeros((n_dead_cells, n_states))
-    dead_cell_arr[:, cell_state] .= dead_idx
+    dead_cell_arr[:, state_dict["state"]] .= fate_dict["Dead"]
     cell_arr = [cell_arr; dead_cell_arr]
 
     return cell_arr
 end
 
 
-function stoc_model(n_cells, time_arr)
+function stoc_model(n_cells, time_arr, param_dict, state_dict, fate_dict)
     ########################################################## assign parameters
-    alpha = 2
-    beta = 2
-    r_div_base = 1.0
-    r_death = 1.0
-    EC50_myc = 0.5
-    deg_myc = 0.5
-    ############################################################# assign indices
-    naive_idx = 0
-    prec_idx = 1
-    th1_idx = 2
-    tfh_idx = 3
-    tr1_idx = 4
-    dead_idx = 8
-    ######################################################### assign cell states
-    cell_state = 1
-    last_state_change = 2
-    prob_state_change = 3
-    prob_death = 4
-    prob_div = 5
-    prob_div0 = 6
-    last_death = 7
-    last_div = 8
 
-    cell_params = [cell_state, last_state_change, prob_state_change, prob_death,
-    prob_div, prob_div0, last_death, last_div]
 
     ######################################################### create cell array
-    n_states = length(cell_params)
-    cell_arr = create_cell_arr(n_cells, n_states, cell_state, prob_state_change, prob_death, prob_div,
-    dead_idx)
+    n_states = length(state_dict)
+    cell_arr = create_cell_arr(n_cells, n_states, state_dict, fate_dict)
     ################################################ create arr for cell numbers
     n_naive = zeros(length(time_arr))
     n_th1 = zeros(length(time_arr))
@@ -203,14 +202,11 @@ function stoc_model(n_cells, time_arr)
         time = time_arr[t]
         t_new = time_arr[t+1]
         #myc = get_myc(time, deg_myc)
-        r_div = r_div_base#*pos_fb(myc, EC50_myc)
+        #r_div = r_div_base#*pos_fb(myc, EC50_myc)
 
-        update_cells(cell_arr, time, t_new, r_div, r_death, alpha, beta, cell_state,
-        last_state_change, prob_state_change, prob_death, prob_div, prob_div0,
-        last_death, last_div, naive_idx, prec_idx, th1_idx, tr1_idx, dead_idx)
-
-        update_cell_numbers(cell_arr, t, cell_state, n_th1, n_tfh, n_tr1, n_naive,
-        n_prec, th1_idx, tfh_idx, tr1_idx, naive_idx, prec_idx)
+        update_cells(cell_arr, time, t_new, param_dict, state_dict, fate_dict)
+        update_cell_numbers(cell_arr, t, n_th1, n_tfh, n_tr1, n_naive, n_prec,
+        state_dict, fate_dict)
     end
 
     df = DataFrame(time = time_arr, Th1 = n_th1, Tfh = n_tfh, Tr1 = n_tr1,
@@ -222,8 +218,8 @@ end
 #################################################### change below if I want module
 # second entry is jump time (last state transition)
 # third entry is cumulative
-function run_sim(n_sim, n_cells, time_arr)
-    res_arr = [stoc_model(n_cells, time_arr) for i = 1:n_sim]
+function run_sim(n_sim, n_cells, time_arr, param_dict, state_dict, fate_dict)
+    res_arr = [stoc_model(n_cells, time_arr, param_dict, state_dict, fate_dict) for i = 1:n_sim]
     res_arr = vcat(res_arr...)
     return res_arr
 end
@@ -233,15 +229,7 @@ n_cells = 500
 # cell can be alive or dead
 # create cell array
 
-time_arr = range(0, 15, step = 0.0001)
-df = run_sim(100, n_cells, time_arr)
-CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step0001.csv", df)
-
-time_arr = range(0, 15, step = 0.001)
-df = run_sim(100, n_cells, time_arr)
-CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step001.csv", df)
-
-
 time_arr = range(0, 15, step = 0.01)
-df = run_sim(100, n_cells, time_arr)
-CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step01.csv", df)
+df = run_sim(50, n_cells, time_arr, param_dict, state_dict, fate_dict)
+#CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step0001.csv", df)
+h5write("Onedrive/projects/2020/tcell_stochastic/output/model_output.h5", "mygroup", df)
