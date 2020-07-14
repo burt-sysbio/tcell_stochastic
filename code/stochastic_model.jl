@@ -3,7 +3,7 @@
 using Distributions
 using DataFrames
 using HDF5
-
+using CSV
 # param dict
 
 
@@ -20,12 +20,12 @@ state_dict = Dict([
 ])
 
 fate_dict = Dict([
-("Naive", 1),
-("Prec", 2),
-("Th1", 3),
-("Tfh", 4),
-("Tr1", 5),
-("Dead", 6)
+("Naive", 0),
+("Prec", 1),
+("Th1", 2),
+("Tfh", 3),
+("Tr1", 4),
+("Dead", 5)
 ])
 
 param_dict = Dict([
@@ -63,9 +63,9 @@ end
 
 function naive_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
 # note that naive cell does not need to take jump instance into account because last_state change = 0
-    if 1-cdf(Gamma(param_dict["alpha"],1/param_dict["beta"]), time) < cell_arr[i, param_dict["prob_change"]]
+    if 1-cdf(Gamma(param_dict["alpha"],1/param_dict["beta"]), time) < cell_arr[i, state_dict["prob_change"]]
         # assign new cell state
-        cell_arr[i,state_dict["fate"]] = fate_dict["Prec"]
+        cell_arr[i,state_dict["state"]] = fate_dict["Prec"]
 
         # assign jump time
         cell_arr[i,state_dict["last_change"]] = time
@@ -125,6 +125,7 @@ function create_cell(cell_arr, i, time, state_dict, fate_dict)
     cell_arr[k, state_dict["prob_div0"]] = 0
 end
 
+
 function cell_death(cell_arr, i, time, param_dict, state_dict, fate_dict)
 
     if (1-(cdf(Exponential(1/param_dict["r_death"]), time-cell_arr[i,state_dict["last_death"]]))) <
@@ -137,18 +138,16 @@ end
 function update_cells(cell_arr, time, t_new, param_dict, state_dict, fate_dict)
 
     alive_cells = findall(cell_arr[:, state_dict["state"]] .!= fate_dict["Dead"])
+
     for i in alive_cells
         # note that the order of death vs prolif matters here
         # if they cells die first they cannot proliferate, reverse is not true
         # still not sure if I should use update state at t+1 so that all effects
-
         # differentiation
-        if cell_arr[i,state_dict["state"]] == fate_dict["Naive"]
+        if cell_arr[i, state_dict["state"]] == fate_dict["Naive"]
             naive_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
-
         elseif cell_arr[i, state_dict["state"]] == fate_dict["Prec"]
             prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
-
         else
             cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict)
             cell_death(cell_arr, i, time, param_dict, state_dict, fate_dict)
@@ -175,7 +174,7 @@ function create_cell_arr(n_cells, n_states, state_dict, fate_dict)
     cell_arr[:, state_dict["prob_death"]] = rand(n_cells)
     cell_arr[:, state_dict["prob_div"]] = rand(n_cells)
 
-    n_dead_cells = 1000
+    n_dead_cells = 500
     dead_cell_arr = zeros((n_dead_cells, n_states))
     dead_cell_arr[:, state_dict["state"]] .= fate_dict["Dead"]
     cell_arr = [cell_arr; dead_cell_arr]
@@ -209,9 +208,10 @@ function stoc_model(n_cells, time_arr, param_dict, state_dict, fate_dict)
         state_dict, fate_dict)
     end
 
-    df = DataFrame(time = time_arr, Th1 = n_th1, Tfh = n_tfh, Tr1 = n_tr1,
-    Prec = n_prec)
+    #df = DataFrame(time = time_arr, Th1 = n_th1, Tfh = n_tfh, Tr1 = n_tr1,
+    #Prec = n_prec)
 
+    df = [time_arr n_th1 n_tfh n_tr1 n_prec]
     return df
 end
 
@@ -219,17 +219,20 @@ end
 # second entry is jump time (last state transition)
 # third entry is cumulative
 function run_sim(n_sim, n_cells, time_arr, param_dict, state_dict, fate_dict)
-    res_arr = [stoc_model(n_cells, time_arr, param_dict, state_dict, fate_dict) for i = 1:n_sim]
+    res_arr = []
+    Threads.@threads for i = 1:n_sim
+        push!(res_arr, stoc_model(n_cells, time_arr, param_dict, state_dict, fate_dict))
+    end
     res_arr = vcat(res_arr...)
     return res_arr
 end
 
 # parameters
-n_cells = 500
+n_cells = 100
 # cell can be alive or dead
 # create cell array
 
-time_arr = range(0, 15, step = 0.01)
+time_arr = range(0, 10, step = 0.001)
 df = run_sim(50, n_cells, time_arr, param_dict, state_dict, fate_dict)
 #CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step0001.csv", df)
 h5write("Onedrive/projects/2020/tcell_stochastic/output/model_output.h5", "mygroup", df)

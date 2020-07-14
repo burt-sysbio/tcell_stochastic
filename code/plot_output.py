@@ -24,3 +24,7 @@ import seaborn as sns
 
 g = sns.relplot(data = df_tidy, x = "time", y = "value",
                hue = "variable", ci = "sd", kind = "line")
+
+
+
+data.close()
