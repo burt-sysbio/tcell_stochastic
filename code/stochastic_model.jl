@@ -1,9 +1,7 @@
 ##################################### add if I want module module stochastic_model
 
 using Distributions
-using DataFrames
 using HDF5
-using CSV
 # param dict
 
 
@@ -229,7 +227,7 @@ n_cells = 100
 # cell can be alive or dead
 # create cell array
 
-time_arr = range(0, 10, step = 0.001)
+time_arr = range(0, 5, step = 0.001)
 df = run_sim(50, n_cells, time_arr, param_dict, state_dict, fate_dict)
 #CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step0001.csv", df)
-h5write("Onedrive/projects/2020/tcell_stochastic/output/model_output.h5", "mygroup", df)
+#h5write("Onedrive/projects/2020/tcell_stochastic/output/model_output.h5", "mygroup", df)
