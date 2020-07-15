@@ -262,6 +262,7 @@ function run_sim(n_sim, n_cells, n_genes, time_arr, param_dict, state_dict, fate
     cell_arr = []
     gene_arr = []
 
+    # run stoc_model several times, each time add gene arr and cell arr to list
     Threads.@threads for i = 1:n_sim
         res = stoc_model(n_cells, n_genes, time_arr, param_dict, state_dict, fate_dict)
         cell_df = res[1]
@@ -269,9 +270,11 @@ function run_sim(n_sim, n_cells, n_genes, time_arr, param_dict, state_dict, fate
         push!(cell_arr, cell_df)
         push!(gene_arr, gene_df)
     end
+
+    # concatenate cell arr to one large list
     res_cells = vcat(cell_arr...)
-    res_genes = sum(gene_arr)
-    return (res_cells, res_genes)
+
+    return (res_cells, gene_arr)
 end
 
 # parameters
@@ -279,8 +282,18 @@ n_cells = 100
 # cell can be alive or dead
 # create cell array
 n_genes = 15
+n_sim = 3
 
 time_arr = range(0, 5, step = 0.001)
-cell_arr, gene_arr = run_sim(50, n_cells, n_genes, time_arr, param_dict, state_dict, fate_dict)
-#CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step0001.csv", df)
-#h5write("Onedrive/projects/2020/tcell_stochastic/output/model_output.h5", "mygroup", df)
+cell_arr, gene_arr = run_sim(n_sim, n_cells, n_genes, time_arr, param_dict, state_dict, fate_dict)
+
+# save files as hdf5 format
+sc_data =h5open("Onedrive/projects/2020/tcell_stochastic/output/scseq_sim.h5","w")
+for i=1:n_sim
+    sc_data[string(i)] = gene_arr[i]
+end
+close(sc_data)
+
+cell_data =h5open("Onedrive/projects/2020/tcell_stochastic/output/model_output.h5","w")
+cell_data["cell_data"] = cell_arr
+close(cell_data)
