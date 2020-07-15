@@ -184,9 +184,6 @@ end
 
 
 function stoc_model(n_cells, time_arr, param_dict, state_dict, fate_dict)
-    ########################################################## assign parameters
-
-
     ######################################################### create cell array
     n_states = length(state_dict)
     cell_arr = create_cell_arr(n_cells, n_states, state_dict, fate_dict)
