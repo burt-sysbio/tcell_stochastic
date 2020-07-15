@@ -75,12 +75,15 @@ function naive_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
 end
 
 
-function prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
+function prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict, shift_arr)
 # note that naive cell does not need to take jump instance into account because last_state change = 0
     if 1-cdf(Gamma(param_dict["alpha"],1/param_dict["beta"]), time-cell_arr[i, state_dict["last_change"]]) <
         cell_arr[i, state_dict["prob_change"]]
         # assign new cell state
-        cell_arr[i, state_dict["state"]] = draw_fate()
+        fate = draw_fate()
+        cell_arr[i, state_dict["state"]] = fate
+        # update fate for gene shift
+        shift_arr[i] = fate
         # assign jump time
         cell_arr[i, state_dict["last_change"]] = time
         cell_arr[i, state_dict["last_div"]] = time
@@ -90,11 +93,11 @@ function prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
 end
 
 
-function cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict)
+function cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict, prolif_arr)
 
     if cell_arr[i, state_dict["prob_div0"]] > cell_arr[i, state_dict["prob_div"]]
 
-        create_cell(cell_arr, i, time, state_dict, fate_dict)
+        create_cell(cell_arr, i, time, state_dict, fate_dict, prolif_arr)
 
         # for mother cell update division time and assign new division probability
         cell_arr[i, state_dict["prob_div"]] = rand(Float64)
@@ -107,7 +110,7 @@ function cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict
     end
 end
 
-function create_cell(cell_arr, i, time, state_dict, fate_dict)
+function create_cell(cell_arr, i, time, state_dict, fate_dict, prolif_arr)
     # find a dead cell and make it alive
     # from all dead cells start with the first index then increase
     k = findfirst(cell_arr[:, state_dict["state"]] .== fate_dict["Dead"])
@@ -121,6 +124,9 @@ function create_cell(cell_arr, i, time, state_dict, fate_dict)
     cell_arr[k, state_dict["last_div"]] = time
     cell_arr[k, state_dict["last_death"]] = time
     cell_arr[k, state_dict["prob_div0"]] = 0
+
+    # indicate that daugther cell genes will be subject to noise
+    prolif_arr[k] = true
 end
 
 
@@ -133,7 +139,8 @@ function cell_death(cell_arr, i, time, param_dict, state_dict, fate_dict)
 end
 
 
-function update_cells(cell_arr, time, t_new, param_dict, state_dict, fate_dict)
+function update_cells(cell_arr, time, t_new, param_dict, state_dict,
+    fate_dict, shift_arr, prolif_arr)
 
     alive_cells = findall(cell_arr[:, state_dict["state"]] .!= fate_dict["Dead"])
 
@@ -145,9 +152,9 @@ function update_cells(cell_arr, time, t_new, param_dict, state_dict, fate_dict)
         if cell_arr[i, state_dict["state"]] == fate_dict["Naive"]
             naive_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
         elseif cell_arr[i, state_dict["state"]] == fate_dict["Prec"]
-            prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict)
+            prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict, shift_arr)
         else
-            cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict)
+            cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict, prolif_arr)
             cell_death(cell_arr, i, time, param_dict, state_dict, fate_dict)
         end
     end
@@ -164,7 +171,7 @@ function update_cell_numbers(cell_arr, t, n_th1, n_tfh, n_tr1, n_naive, n_prec,
 end
 
 
-function create_cell_arr(n_cells, n_states, state_dict, fate_dict)
+function create_cell_arr(n_cells, n_dead_cells, n_states, state_dict, fate_dict)
     cell_arr = zeros((n_cells, n_states))
     # assign random numbers for naive prec. transition
     cell_arr[:, state_dict["prob_change"]] = rand(n_cells)
@@ -172,7 +179,6 @@ function create_cell_arr(n_cells, n_states, state_dict, fate_dict)
     cell_arr[:, state_dict["prob_death"]] = rand(n_cells)
     cell_arr[:, state_dict["prob_div"]] = rand(n_cells)
 
-    n_dead_cells = 500
     dead_cell_arr = zeros((n_dead_cells, n_states))
     dead_cell_arr[:, state_dict["state"]] .= fate_dict["Dead"]
     cell_arr = [cell_arr; dead_cell_arr]
@@ -180,54 +186,101 @@ function create_cell_arr(n_cells, n_states, state_dict, fate_dict)
     return cell_arr
 end
 
+function gene_noise(gene_arr, cells_idc, noise = 0.01)
+    gene_arr[cells_idc, :] = [rand(Normal(x, noise)) for x in gene_arr[cells_idc,:]]
+end
 
-function stoc_model(n_cells, time_arr, param_dict, state_dict, fate_dict)
+
+function gene_shift(gene_arr, cells_idc, fate_ids)
+    gene_arr[cells_idc, fate_ids] = gene_arr[cells_idc, fate_ids] .+
+    ((1 .- gene_arr[cells_idc, fate_ids]) ./ 2)
+end
+
+
+function update_genes(gene_arr, shift_arr, prolif_arr)
+    # find th1, tfh, tr1 idx in shift_arr and subset alive  cells
+    # note that shift arr indices were updated only with respect to alive_cells
+    th1_shift = shift_arr .== 2
+    tfh_shift = shift_arr .== 3
+    tr1_shift = shift_arr .== 4
+    fate_th1 = 1:5
+    fate_tfh = 6:10
+    fate_tr1 = 11:15
+    # update gene shift for th1, tfh and tr1 cells
+    gene_shift(gene_arr, th1_shift, fate_th1)
+    gene_shift(gene_arr, tfh_shift, fate_tfh)
+    gene_shift(gene_arr, tr1_shift, fate_tr1)
+
+    # add noise to daughter cells based on prolif arr
+    gene_noise(gene_arr, prolif_arr)
+end
+
+
+function stoc_model(n_cells, n_genes, time_arr, param_dict, state_dict, fate_dict)
     ######################################################### create cell array
+    n_dead_cells = 500
     n_states = length(state_dict)
-    cell_arr = create_cell_arr(n_cells, n_states, state_dict, fate_dict)
+    cell_arr = create_cell_arr(n_cells, n_dead_cells, n_states, state_dict, fate_dict)
+    gene_arr = rand(n_cells+n_dead_cells, n_genes)
     ################################################ create arr for cell numbers
-    n_naive = zeros(length(time_arr))
-    n_th1 = zeros(length(time_arr))
-    n_tfh = zeros(length(time_arr))
-    n_tr1 = zeros(length(time_arr))
-    n_prec = zeros(length(time_arr))
+    n_naive = zeros(Int64, length(time_arr))
+    n_th1 = zeros(Int64, length(time_arr))
+    n_tfh = zeros(Int64, length(time_arr))
+    n_tr1 = zeros(Int64, length(time_arr))
+    n_prec = zeros(Int64, length(time_arr))
 
     for t = 1:(length(time_arr)-1)
         time = time_arr[t]
         t_new = time_arr[t+1]
+
         #myc = get_myc(time, deg_myc)
         #r_div = r_div_base#*pos_fb(myc, EC50_myc)
+        # find all alive cells, to only loop over them
 
-        update_cells(cell_arr, time, t_new, param_dict, state_dict, fate_dict)
+        # make an array to remember which cells change fate for gene arr
+        shift_arr = zeros(Int64, n_cells+n_dead_cells)
+        # make an array to check which cells are newly created
+        prolif_arr = falses(n_cells+n_dead_cells)
+
+        update_cells(cell_arr, time, t_new, param_dict, state_dict,
+        fate_dict, shift_arr, prolif_arr)
+
         update_cell_numbers(cell_arr, t, n_th1, n_tfh, n_tr1, n_naive, n_prec,
         state_dict, fate_dict)
+
+        update_genes(gene_arr, shift_arr, prolif_arr)
     end
 
-    #df = DataFrame(time = time_arr, Th1 = n_th1, Tfh = n_tfh, Tr1 = n_tr1,
-    #Prec = n_prec)
-
     df = [time_arr n_th1 n_tfh n_tr1 n_prec]
-    return df
+    return (df, gene_arr)
 end
 
 #################################################### change below if I want module
 # second entry is jump time (last state transition)
 # third entry is cumulative
-function run_sim(n_sim, n_cells, time_arr, param_dict, state_dict, fate_dict)
-    res_arr = []
+function run_sim(n_sim, n_cells, n_genes, time_arr, param_dict, state_dict, fate_dict)
+    cell_arr = []
+    gene_arr = []
+
     Threads.@threads for i = 1:n_sim
-        push!(res_arr, stoc_model(n_cells, time_arr, param_dict, state_dict, fate_dict))
+        res = stoc_model(n_cells, n_genes, time_arr, param_dict, state_dict, fate_dict)
+        cell_df = res[1]
+        gene_df = res[2]
+        push!(cell_arr, cell_df)
+        push!(gene_arr, gene_df)
     end
-    res_arr = vcat(res_arr...)
-    return res_arr
+    res_cells = vcat(cell_arr...)
+    res_genes = sum(gene_arr)
+    return (res_cells, res_genes)
 end
 
 # parameters
 n_cells = 100
 # cell can be alive or dead
 # create cell array
+n_genes = 15
 
 time_arr = range(0, 5, step = 0.001)
-df = run_sim(50, n_cells, time_arr, param_dict, state_dict, fate_dict)
+cell_arr, gene_arr = run_sim(50, n_cells, n_genes, time_arr, param_dict, state_dict, fate_dict)
 #CSV.write("Onedrive/projects/2020/tcell_stochastic/output/step0001.csv", df)
 #h5write("Onedrive/projects/2020/tcell_stochastic/output/model_output.h5", "mygroup", df)
