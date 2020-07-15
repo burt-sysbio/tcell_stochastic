@@ -292,7 +292,7 @@ function run_sim(n_sim, n_cells, n_genes, time_arr, param_dict, state_dict, fate
 end
 
 # parameters
-n_cells = 100
+n_cells = 2000
 # cell can be alive or dead
 # create cell array
 n_genes = 60
