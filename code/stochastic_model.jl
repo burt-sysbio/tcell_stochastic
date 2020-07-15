@@ -93,11 +93,11 @@ function prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict, shift_a
 end
 
 
-function cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict, prolif_arr)
+function cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict, mother_arr, daughter_arr)
 
     if cell_arr[i, state_dict["prob_div0"]] > cell_arr[i, state_dict["prob_div"]]
 
-        create_cell(cell_arr, i, time, state_dict, fate_dict, prolif_arr)
+        create_cell(cell_arr, i, time, state_dict, fate_dict, mother_arr, daughter_arr)
 
         # for mother cell update division time and assign new division probability
         cell_arr[i, state_dict["prob_div"]] = rand(Float64)
@@ -110,7 +110,7 @@ function cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict
     end
 end
 
-function create_cell(cell_arr, i, time, state_dict, fate_dict, prolif_arr)
+function create_cell(cell_arr, i, time, state_dict, fate_dict, mother_arr, daughter_arr)
     # find a dead cell and make it alive
     # from all dead cells start with the first index then increase
     k = findfirst(cell_arr[:, state_dict["state"]] .== fate_dict["Dead"])
@@ -126,7 +126,8 @@ function create_cell(cell_arr, i, time, state_dict, fate_dict, prolif_arr)
     cell_arr[k, state_dict["prob_div0"]] = 0
 
     # indicate that daugther cell genes will be subject to noise
-    prolif_arr[k] = true
+    daughter_arr[k] = true
+    mother_arr[i] = true
 end
 
 
@@ -140,7 +141,7 @@ end
 
 
 function update_cells(cell_arr, time, t_new, param_dict, state_dict,
-    fate_dict, shift_arr, prolif_arr)
+    fate_dict, shift_arr, mother_arr, daughter_arr)
 
     alive_cells = findall(cell_arr[:, state_dict["state"]] .!= fate_dict["Dead"])
 
@@ -154,7 +155,8 @@ function update_cells(cell_arr, time, t_new, param_dict, state_dict,
         elseif cell_arr[i, state_dict["state"]] == fate_dict["Prec"]
             prec_diff(cell_arr, i, time, param_dict, state_dict, fate_dict, shift_arr)
         else
-            cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict, prolif_arr)
+            cell_prolif(cell_arr, i, time, t_new, param_dict, state_dict, fate_dict,
+            mother_arr, daughter_arr)
             cell_death(cell_arr, i, time, param_dict, state_dict, fate_dict)
         end
     end
@@ -186,8 +188,8 @@ function create_cell_arr(n_cells, n_dead_cells, n_states, state_dict, fate_dict)
     return cell_arr
 end
 
-function gene_noise(gene_arr, cells_idc, noise = 0.01)
-    gene_arr[cells_idc, :] = [rand(Normal(x, noise)) for x in gene_arr[cells_idc,:]]
+function gene_noise(gene_arr, mother_arr, daughter_arr, noise = 0.05)
+    gene_arr[daughter_arr, :] = [rand(Normal(x, noise)) for x in gene_arr[mother_arr,:]]
 end
 
 
@@ -197,22 +199,22 @@ function gene_shift(gene_arr, cells_idc, fate_ids)
 end
 
 
-function update_genes(gene_arr, shift_arr, prolif_arr)
+function update_genes(gene_arr, shift_arr, mother_arr, daughter_arr)
     # find th1, tfh, tr1 idx in shift_arr and subset alive  cells
     # note that shift arr indices were updated only with respect to alive_cells
     th1_shift = shift_arr .== 2
     tfh_shift = shift_arr .== 3
     tr1_shift = shift_arr .== 4
-    fate_th1 = 1:5
-    fate_tfh = 6:10
-    fate_tr1 = 11:15
+    fate_th1 = 1:20
+    fate_tfh = 21:40
+    fate_tr1 = 41:60
     # update gene shift for th1, tfh and tr1 cells
     gene_shift(gene_arr, th1_shift, fate_th1)
     gene_shift(gene_arr, tfh_shift, fate_tfh)
     gene_shift(gene_arr, tr1_shift, fate_tr1)
 
     # add noise to daughter cells based on prolif arr
-    gene_noise(gene_arr, prolif_arr)
+    gene_noise(gene_arr, mother_arr, daughter_arr)
 end
 
 
@@ -240,16 +242,28 @@ function stoc_model(n_cells, n_genes, time_arr, param_dict, state_dict, fate_dic
         # make an array to remember which cells change fate for gene arr
         shift_arr = zeros(Int64, n_cells+n_dead_cells)
         # make an array to check which cells are newly created
-        prolif_arr = falses(n_cells+n_dead_cells)
+        mother_arr = falses(n_cells+n_dead_cells)
+        daughter_arr = falses(n_cells+n_dead_cells)
 
         update_cells(cell_arr, time, t_new, param_dict, state_dict,
-        fate_dict, shift_arr, prolif_arr)
+        fate_dict, shift_arr, mother_arr, daughter_arr)
 
         update_cell_numbers(cell_arr, t, n_th1, n_tfh, n_tr1, n_naive, n_prec,
         state_dict, fate_dict)
 
-        update_genes(gene_arr, shift_arr, prolif_arr)
+        update_genes(gene_arr, shift_arr, mother_arr, daughter_arr)
     end
+
+    # set last cell numbers because for loop only goes so far
+
+    # set last element of cel_arr to timestep before because loop only goes so far
+    cell_arr[end, :] = cell_arr[(end-1),:]
+    update_cell_numbers(cell_arr, length(time_arr), n_th1, n_tfh, n_tr1, n_naive, n_prec,
+    state_dict, fate_dict)
+    # find alive cells
+    alive_cells = findall(cell_arr[:, state_dict["state"]] .!= fate_dict["Dead"])
+    # only choose genes of cells that are alive at the end of simulation
+    gene_arr = gene_arr[alive_cells, :]
 
     df = [time_arr n_th1 n_tfh n_tr1 n_prec]
     return (df, gene_arr)
@@ -281,7 +295,7 @@ end
 n_cells = 100
 # cell can be alive or dead
 # create cell array
-n_genes = 15
+n_genes = 60
 n_sim = 3
 
 time_arr = range(0, 5, step = 0.001)

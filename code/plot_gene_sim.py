@@ -27,4 +27,6 @@ df = df_list[0]
 adata = sc.AnnData(df.T)
 #adata.var = colnames
 data.close()
-sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True)
+
+sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.log1p(adata)
