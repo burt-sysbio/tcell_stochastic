@@ -264,6 +264,9 @@ function stoc_model(n_cells, n_genes, time_arr, param_dict, state_dict, fate_dic
     alive_cells = findall(cell_arr[:, state_dict["state"]] .!= fate_dict["Dead"])
     # only choose genes of cells that are alive at the end of simulation
     gene_arr = gene_arr[alive_cells, :]
+    cell_arr = cell_arr[alive_cells, state_dict["state"]]
+
+    gene_arr = [gene_arr cell_arr]
 
     df = [time_arr n_th1 n_tfh n_tr1 n_prec]
     return (df, gene_arr)
