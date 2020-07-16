@@ -66,4 +66,5 @@ sc.pl.pca(adata, color = ["th1_1", "tfh_1", "tr1_1"])
 
 
 sc.pp.neighbors(adata)
-sc.tl.louvain(adata, resolution=0.1)
+sc.tl.leiden(adata, resolution=0.1)
+sc.pl.pca(adata, color = ["leiden"])
