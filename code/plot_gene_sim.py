@@ -17,7 +17,7 @@ data = h5py.File('../output/scseq_sim.h5', 'r')
 
 
 th1_genes = ["th1_"+str(i) for i in range(20)]
-tfh_genes = ["th1_"+str(i) for i in range(20)]
+tfh_genes = ["tfh_"+str(i) for i in range(20)]
 tr1_genes = ["tr1_"+str(i) for i in range(20)]
 
 colnames = th1_genes + tfh_genes + tr1_genes
@@ -30,8 +30,11 @@ df = df_list[0]
 # set elements smaller than zero to 0 but I have to check why they arose in the first place
 df[df<0] = 0
 adata = sc.AnnData(df.T)
-adata.var_names = colnames
 
+# add var df to anndata object
+var_df = pd.DataFrame({"gene_ids" : range(60)})
+adata.var = var_df
+adata.var_names = colnames
 # create UMIs
 obs = ["UMI"+str(np.random.randint(1000,9999)) for i in range(1898)]
 adata.obs_names = obs
@@ -59,4 +62,8 @@ sns.clustermap(adata.X)
 sc.tl.pca(adata)
 
 sc.pl.pca_variance_ratio(adata, log=True)
-sc.pl.pca(adata, color = ["th1_1"])
+sc.pl.pca(adata, color = ["th1_1", "tfh_1", "tr1_1"])
+
+
+sc.pp.neighbors(adata)
+sc.tl.louvain(adata, resolution=0.1)
