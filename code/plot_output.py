@@ -11,7 +11,7 @@ import h5py
 
 data = h5py.File('../output/model_output.h5', 'r')
 
-arr = np.array(data["mygroup"])
+arr = np.array(data["cell_data"])
 
 import pandas as pd
 
@@ -24,7 +24,6 @@ import seaborn as sns
 
 g = sns.relplot(data = df_tidy, x = "time", y = "value",
                hue = "variable", ci = "sd", kind = "line")
-
 
 
 data.close()

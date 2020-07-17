@@ -14,7 +14,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from random import randrange
 data = h5py.File('../output/scseq_sim.h5', 'r')
-
+sc.settings.figdir = '../figures/'
 
 th1_genes = ["th1_"+str(i) for i in range(20)]
 tfh_genes = ["tfh_"+str(i) for i in range(20)]
@@ -58,43 +58,49 @@ adata.obs_names = obs
 #sc.pl.highest_expr_genes(adata, n_top=20, )
 
 # split up data frame into signature genes
-adata_th1 = adata[:,:20]
-adata_tfh = adata[:,20:40]
-adata_tr1 = adata[:,40:60]
+#adata_th1 = adata[:,:20]
+#adata_tfh = adata[:,20:40]
+#adata_tr1 = adata[:,40:60]
 
 # plot total counts for signature genes
-cpc_th1 = adata_th1.X.sum(axis = 1)
-cpc_tfh = adata_tfh.X.sum(axis = 1)
-cpc_tr1 = adata_tr1.X.sum(axis = 1)
+#cpc_th1 = adata_th1.X.sum(axis = 1)
+#cpc_tfh = adata_tfh.X.sum(axis = 1)
+#cpc_tr1 = adata_tr1.X.sum(axis = 1)
 
-df_cpc = pd.DataFrame({"th1_genes" : cpc_th1, 
-                       "tfh_genes" : cpc_tfh, 
-                       "tr1_genes" : cpc_tr1})
+#df_cpc = pd.DataFrame({"th1_genes" : cpc_th1, 
+#                       "tfh_genes" : cpc_tfh, 
+#                       "tr1_genes" : cpc_tr1})
 
-df_cpc = pd.melt(df_cpc)
-
-sns.catplot(data = df_cpc, x = "variable", y = "value", kind = "violin")
-
-# make a clustered heatmap
-sns.clustermap(adata.X)
-
-
-# plot pca
-sc.tl.pca(adata)
-sc.pl.pca_variance_ratio(adata, log=True)
-sc.pl.pca(adata, color = ["th1_1", "tfh_1", "tr1_1"])
-
-# cluster cells
-sc.pp.neighbors(adata)
-sc.tl.leiden(adata, resolution=0.1)
+#df_cpc = pd.melt(df_cpc)
+#sns.catplot(data = df_cpc, x = "variable", y = "value", kind = "violin")
 
 
 # add original fate to adata obs
 adata.obs["fate"] = df_fates.values
 
-sc.pl.pca(adata, color = ["leiden", "fate"])
+
+# make a clustered heatmap
+g = sns.clustermap(adata.X)
+g.savefig("../figures/heatmap_stoc_sim.png")
+
+
+# plot pca
+sc.tl.pca(adata)
+sc.pl.pca_variance_ratio(adata, log=True)
+
+
+sc.pl.pca(adata, color = ["th1_1", "tfh_1", "tr1_1"], save = "_stoc_sim.png")
+
+# cluster cells
+sc.pp.neighbors(adata)
+sc.tl.leiden(adata, resolution=0.1)
+
+sc.pl.pca(adata, color = ["leiden", "fate"], save = "_stoc_sim2.png")
 
 
 sc.pp.neighbors(adata)
 sc.tl.umap(adata, min_dist = 1.5, spread = 1.0)
-sc.pl.umap(adata, color = ["fate"])
+
+fig, ax = plt.subplots()
+sc.pl.umap(adata, color = ["fate"], ax = ax)
+fig.savefig("../figures/umap_stoc_sim.png")
