@@ -1,4 +1,4 @@
-##################################### add if I want module module stochastic_model
+# use this script to test rate/poisson/resposne time stuff for a single cell
 
 using Distributions
 using DataFrames
