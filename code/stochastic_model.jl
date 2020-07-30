@@ -336,12 +336,20 @@ time_arr = range(0, 5, step = 0.001)
 cell_arr, gene_arr = run_sim(n_sim, n_cells, n_genes, time_arr, d_param, d_state, d_fate)
 
 # save files as hdf5 format
-sc_data =h5open("home/burt/Documents/projects/2020/tcell_stochastic/output/scseq_sim.h5","w")
+system = "unix"
+
+if system == "unix"
+    path = "Documents/projects/2020/tcell_stochastic/output/"
+else
+    path = "/Onedrive/Documents/projects/2020/tcell_stochastic/output/"
+end
+
+sc_data =h5open(path*"scseq_sim.h5","w")
 for i=1:n_sim
     sc_data[string(i)] = gene_arr[i]
 end
 close(sc_data)
 
-cell_data =h5open("home/burt/Documents/projects/2020/tcell_stochastic/output/model_output.h5","w")
+cell_data =h5open(path*"model_output.h5","w")
 cell_data["cell_data"] = cell_arr
 close(cell_data)
