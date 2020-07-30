@@ -13,7 +13,10 @@ import scanpy as sc
 import seaborn as sns
 import matplotlib.pyplot as plt
 from random import randrange
-data = h5py.File('../output/scseq_sim.h5', 'r')
+
+filenames = ["scseq_environment_fate.h5", "scseq_predetermined_fate.h5"]
+
+data = h5py.File('../output/'+filenames[1], 'r')
 sc.settings.figdir = '../figures/'
 
 th1_genes = ["th1_"+str(i) for i in range(20)]
@@ -55,25 +58,6 @@ adata.var_names = colnames
 obs = ["UMI"+str(np.random.randint(1000,9999)) for i in range(len(df.index))]
 adata.obs_names = obs
 
-#sc.pl.highest_expr_genes(adata, n_top=20, )
-
-# split up data frame into signature genes
-#adata_th1 = adata[:,:20]
-#adata_tfh = adata[:,20:40]
-#adata_tr1 = adata[:,40:60]
-
-# plot total counts for signature genes
-#cpc_th1 = adata_th1.X.sum(axis = 1)
-#cpc_tfh = adata_tfh.X.sum(axis = 1)
-#cpc_tr1 = adata_tr1.X.sum(axis = 1)
-
-#df_cpc = pd.DataFrame({"th1_genes" : cpc_th1, 
-#                       "tfh_genes" : cpc_tfh, 
-#                       "tr1_genes" : cpc_tr1})
-
-#df_cpc = pd.melt(df_cpc)
-#sns.catplot(data = df_cpc, x = "variable", y = "value", kind = "violin")
-
 
 # add original fate to adata obs
 adata.obs["fate"] = df_fates.values
@@ -81,7 +65,7 @@ adata.obs["fate"] = df_fates.values
 
 # make a clustered heatmap
 g = sns.clustermap(adata.X)
-g.savefig("../figures/heatmap_stoc_sim.png")
+#g.savefig("../figures/heatmap_stoc_sim.png")
 
 
 # plot pca
@@ -103,4 +87,4 @@ sc.tl.umap(adata, min_dist = 1.5, spread = 1.0)
 
 fig, ax = plt.subplots()
 sc.pl.umap(adata, color = ["fate"], ax = ax)
-fig.savefig("../figures/umap_stoc_sim.png")
+#fig.savefig("../figures/umap_stoc_sim.png")

@@ -187,19 +187,23 @@ function create_prob_arr(gene_arr, fate_th1, fate_tfh, fate_tr1, d_param, mode)
     # take gene arr and collapse into probability array for fate decision
     # fate_th1... should be range objects
     # returns prob arr, same n row as gene_arr with 3 cols
-
+    n, m = size(gene_arr)
     if mode == "predetermined"
         fate_idx = [fate_th1, fate_tfh, fate_tr1]
         # take the sum across each set of signature genes
-        prob_arr = [sum(gene_arr[:,idx], dims=2) for idx in fate_idx]
-        # concatenate into one horizontal vector
-        prob_arr = hcat(prob_arr...)
-        # normalize the probability
+        # generate random probabilities for each fate
+        prob_arr = rand(n, 3)
         prob_arr = prob_arr ./ sum(prob_arr, dims=2)
+        gene_mean = mean(gene_arr, dims=2)
+        # multiply gene arr with weights from prob arr then subtract new mean and add old mean
+        gene_arr[:, fate_th1] = gene_arr[:, fate_th1] .* prob_arr[:,1]
+        gene_arr[:, fate_tfh] = gene_arr[:, fate_tfh] .* prob_arr[:,2]
+        gene_arr[:, fate_tr1] = gene_arr[:, fate_tr1] .* prob_arr[:,3]
+        new_mean = mean(gene_arr, dims=2)
+        gene_arr[:,:] = gene_arr[:,:] .- new_mean .+ gene_mean
     else
         # create prob arr based on param dict
         # make arr of ones and multiply by column with default probability
-        n, m = size(gene_arr)
         prob_arr = ones(n, 3)
         probs = ["prob_Th1", "prob_Tfh", "prob_Tr1"]
         for (index, value) in enumerate(probs)

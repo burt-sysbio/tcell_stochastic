@@ -27,9 +27,9 @@ d_param = Dict([
 ("beta", 2.0),
 ("r_div", 1.0),
 ("r_death", 1.0),
-("prob_Th1", 0.5),
-("prob_Tfh", 0.3),
-("prob_Tr1", 0.2)
+("prob_Th1", 0.333),
+("prob_Tfh", 0.333),
+("prob_Tr1", 0.333)
 ])
 
 
