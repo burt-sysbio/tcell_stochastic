@@ -4,14 +4,13 @@ Created on Wed Jul 15 17:50:53 2020
 
 @author: Philipp
 """
-
-
 import numpy as np
 import h5py
 import pandas as pd
 import scanpy as sc
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sinfo import sinfo
 from random import randrange
 
 filenames = ["scseq_environment_fate.h5", "scseq_predetermined_fate.h5"]
@@ -88,3 +87,5 @@ sc.tl.umap(adata, min_dist = 1.5, spread = 1.0)
 fig, ax = plt.subplots()
 sc.pl.umap(adata, color = ["fate"], ax = ax)
 #fig.savefig("../figures/umap_stoc_sim.png")
+
+sinfo(write_req_file = True)

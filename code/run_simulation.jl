@@ -32,8 +32,11 @@ d_param = Dict([
 ("prob_Tr1", 0.333)
 ])
 
-
+"""
+run simulation
+"""
 function run_sim(n_sim, n_cells, n_genes, time_arr, d_param, d_state, d_fate, mode)
+
     cell_arr = []
     gene_arr = []
 
@@ -53,26 +56,27 @@ function run_sim(n_sim, n_cells, n_genes, time_arr, d_param, d_state, d_fate, mo
     return (res_cells, gene_arr)
 end
 
+"""
+save file as hdf5 format
+"""
+function save_file(cell_arr, gene_arr, filename)
+    # set working directory
+    cd(@__DIR__)
+    cd("..")
+    cd("output")
 
-function save_file(cell_arr, gene_arr, filename, system = "unix")
-# save files as hdf5 format
-    if system == "unix"
-        path = "Documents/projects/2020/tcell_stochastic/output/"
-    else
-        path = "/Onedrive/Documents/projects/2020/tcell_stochastic/output/"
-    end
-
-    sc_data =h5open(path*"scseq_"*filename*".h5","w")
+    sc_data =h5open("scseq_"*filename*".h5","w")
     for i=1:n_sim
         sc_data[string(i)] = gene_arr[i]
     end
     close(sc_data)
 
-    cell_data =h5open(path*"cell_numbers_"*filename*".h5","w")
+    cell_data =h5open("cell_numbers_"*filename*".h5","w")
     cell_data["cell_data"] = cell_arr
     close(cell_data)
 end
 
+# set parameters
 n_cells = 2000
 # cell can be alive or dead
 # create cell array
