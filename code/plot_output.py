@@ -9,9 +9,10 @@ import numpy as np
 import h5py
 import pandas as pd
 import seaborn as sns
-
+import matplotlib.pyplot as plt
+sns.set(context = "poster" , style = "ticks")
 # load data
-filenames = ["cell_numbers_environment_fate.h5", "cell_numbers_predetermined_fate.h5"]
+filenames = ["cell_numbers_fixed_probabilities.h5"]
 data = [h5py.File('../output/'+filename, 'r') for filename in filenames]
 # hdf5 file only has one group cell data
 arr = [np.array(d["cell_data"]) for d in data]
@@ -19,7 +20,7 @@ arr = [np.array(d["cell_data"]) for d in data]
 colnames = ["time", "th1", "tfh", "tr1", "n_prec"]
 df = [pd.DataFrame(a.T, columns = colnames) for a in arr]
 
-fate_reg = ["environment", "predetermined"]
+fate_reg = ["fixed_probs"]
 for d, name in zip(df,fate_reg):
     d["fate"] = name
     
@@ -27,8 +28,11 @@ for d, name in zip(df,fate_reg):
 df = pd.concat(df)
 df = df.melt(id_vars = ["time", "fate"])
 
-g = sns.relplot(data = df, x = "time", y = "value", col = "fate",
-               hue = "variable", ci = "sd", kind = "line")
-
-
+# use fate variable in dataframe if there are multiple scenarios to be compared
+g = sns.relplot(data = df, x = "time", y = "value", hue = "variable", ci = "sd",
+                kind = "line", aspect = 0.8)
+g.set(xlabel = "time (a.u.)", ylabel = "cells")
+plt.show()
+g.savefig("../figures/timecourse_fixed_probs.pdf")
+g.savefig("../figures/timecourse_fixed_probs.svg")
 [d.close() for d in data]

@@ -27,9 +27,9 @@ d_param = Dict([
 ("beta", 2.0),
 ("r_div", 1.0),
 ("r_death", 1.0),
-("prob_Th1", 0.333),
-("prob_Tfh", 0.333),
-("prob_Tr1", 0.333)
+("prob_Th1", 0.5),
+("prob_Tfh", 0.3),
+("prob_Tr1", 0.2)
 ])
 
 """
@@ -81,17 +81,18 @@ n_cells = 2000
 # cell can be alive or dead
 # create cell array
 n_genes = 60
-n_sim = 3
+n_sim = 10
 
 time_arr = range(0, 5, step = 0.001)
 
 # run simulation with predetermined and with fixed fate
+#cell_arr, gene_arr = run_sim(n_sim, n_cells, n_genes, time_arr, d_param,
+#d_state, d_fate, "predetermined")
+
+#save_file(cell_arr, gene_arr, "predetermined_fate")
+
+filename = "fixed_probabilities"
 cell_arr, gene_arr = run_sim(n_sim, n_cells, n_genes, time_arr, d_param,
-d_state, d_fate, "predetermined")
+d_state, d_fate, filename)
 
-save_file(cell_arr, gene_arr, "predetermined_fate")
-
-cell_arr, gene_arr = run_sim(n_sim, n_cells, n_genes, time_arr, d_param,
-d_state, d_fate, "environment")
-
-save_file(cell_arr, gene_arr, "environment_fate")
+save_file(cell_arr, gene_arr, filename)
