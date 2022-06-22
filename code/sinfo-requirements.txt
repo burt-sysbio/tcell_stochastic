@@ -1,7 +1,7 @@
 anndata==0.7.3
 h5py==2.10.0
 matplotlib==3.2.1
-numpy==1.17.5
+numpy==1.22.0
 pandas==1.0.4
 scanpy==1.5.1
 seaborn==0.10.1
